@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AudioNotary — Digital Voice Forensics</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0B1F3A;
+      color: #E0EAF4;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    .header { text-align: center; margin-bottom: 36px; }
+    .header h1 { font-size: 2.4rem; color: #fff; letter-spacing: 2px; }
+    .header h1 span { color: #17A589; }
+    .header p { color: #7FB3D3; margin-top: 8px; }
+
+    .card {
+      background: #0F2A45;
+      border: 1px solid #1A3F6F;
+      border-radius: 16px;
+      padding: 28px;
+      width: 100%;
+      max-width: 700px;
+      margin-bottom: 24px;
+    }
+
+    .upload-zone {
+      border: 2px dashed #1A3F6F;
+      border-radius: 12px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .upload-zone:hover { border-color: #17A589; background: rgba(23,165,137,0.05); }
+    .upload-zone .icon { font-size: 3rem; margin-bottom: 10px; }
+    .upload-zone p { color: #7FB3D3; font-size: 0.9rem; }
+    #fileName { color: #17A589; font-weight: bold; margin-top: 10px; min-height: 20px; }
+    #fileInput { display: none; }
+
+    .btn {
+      width: 100%; padding: 14px; margin-top: 18px;
+      border: none; border-radius: 10px;
+      font-size: 1.1rem; font-weight: bold; cursor: pointer;
+      background: linear-gradient(135deg, #17A589, #0A7EA4);
+      color: white; letter-spacing: 1px; transition: opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .status-box {
+      display: none; margin-top: 14px; padding: 14px 16px;
+      border-radius: 10px; font-size: 0.95rem; text-align: center;
+    }
+    #loadingBox { background: rgba(10,126,164,0.15); color: #7FB3D3; }
+    #errorBox   { background: rgba(176,58,46,0.2);  color: #E74C3C; text-align: left; white-space: pre-wrap; word-break: break-all; }
+    #debugBox   {
+      background: #091D33; color: #7FB3D3;
+      text-align: left; font-family: monospace; font-size: 0.78rem;
+      white-space: pre-wrap; word-break: break-all;
+      border: 1px solid #1A3F6F; border-radius: 8px;
+      max-height: 200px; overflow-y: auto;
+    }
+
+    #results { display: none; }
+
+    .gauge-wrap { text-align: center; margin-bottom: 24px; }
+    .verdict-label { font-size: 1.6rem; font-weight: bold; margin-top: 10px; letter-spacing: 2px; }
+    .verdict-desc  { color: #7FB3D3; font-size: 0.88rem; margin-top: 8px; line-height: 1.5; max-width: 540px; margin-left: auto; margin-right: auto; }
+
+    .score-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .score-card {
+      flex: 1; min-width: 130px; background: #091D33;
+      border-radius: 10px; padding: 14px; text-align: center;
+      border-top: 3px solid #1A3F6F;
+    }
+    .score-card .lbl { font-size: 0.72rem; color: #7FB3D3; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .score-card .val { font-size: 2rem; font-weight: bold; }
+    .score-card .sub { font-size: 0.68rem; color: #4A7A9B; margin-top: 4px; }
+
+    .sec-title {
+      font-size: 0.72rem; color: #4A7A9B; text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 10px; padding-bottom: 6px;
+      border-bottom: 1px solid #1A3F6F;
+    }
+
+    .bio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 10px; margin-bottom: 20px; }
+    .bio-item { background: #091D33; border-radius: 8px; padding: 12px; }
+    .bio-item .b-lbl { font-size: 0.68rem; color: #4A7A9B; text-transform: uppercase; margin-bottom: 4px; }
+    .bio-item .b-val { font-size: 1rem; font-weight: bold; }
+
+    .viz-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .viz-box { flex: 1; min-width: 220px; }
+    .viz-box p { font-size: 0.72rem; color: #4A7A9B; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .viz-box img { width: 100%; border-radius: 8px; border: 1px solid #1A3F6F; }
+
+    .flags-list { list-style: none; }
+    .flags-list li {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+      background: #091D33; font-size: 0.84rem;
+    }
+    .badge { font-size: 0.62rem; font-weight: bold; padding: 3px 7px; border-radius: 4px; white-space: nowrap; margin-top: 2px; }
+    .badge-HIGH   { background: rgba(176,58,46,0.3);  color: #E74C3C; border: 1px solid #922B21; }
+    .badge-MEDIUM { background: rgba(202,111,30,0.3); color: #E59866; border: 1px solid #935116; }
+    .badge-LOW    { background: rgba(74,122,155,0.3); color: #7FB3D3; border: 1px solid #1A5276; }
+    .flag-code   { color: #E59866; font-family: monospace; font-weight: bold; display: block; margin-bottom: 3px; }
+    .flag-detail { color: #B0C8E0; line-height: 1.4; }
+
+    .reco-box {
+      background: rgba(23,165,137,0.08); border-left: 3px solid #17A589;
+      border-radius: 0 8px 8px 0; padding: 14px 16px;
+      font-size: 0.88rem; color: #A8D8C8; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🎙️ Audio<span>Notary</span></h1>
+  <p>Digital Voice Forensics · 3-Layer Trust Audit System</p>
+</div>
+
+<!-- Upload Card -->
+<div class="card">
+  <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+    <div class="icon">🎵</div>
+    <p>Click to select an audio file</p>
+    <p style="font-size:0.75rem;color:#4A7A9B;margin-top:4px;">WAV · MP3 · FLAC · OGG · MP4 · M4A</p>
+    <div id="fileName">No file selected</div>
+  </div>
+  <input type="file" id="fileInput"
+         accept=".wav,.mp3,.flac,.ogg,.mp4,.m4a,.aac,.webm"
+         onchange="onFileSelected(this)"/>
+
+  <button class="btn" id="analyzeBtn" disabled onclick="analyzeAudio()">
+    🔬 Analyze Audio
+  </button>
+
+  <div class="status-box" id="loadingBox">
+    ⏳ Running 3-Layer Trust Audit… please wait
+  </div>
+  <div class="status-box" id="errorBox"></div>
+  <div class="status-box" id="debugBox"></div>
+</div>
+
+<!-- Results Card -->
+<div class="card" id="results">
+
+  <div class="gauge-wrap">
+    <svg width="200" height="200" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="80" fill="none" stroke="#1A3F6F" stroke-width="16"/>
+      <circle id="gaugeArc" cx="100" cy="100" r="80" fill="none"
+              stroke="#17A589" stroke-width="16" stroke-linecap="round"
+              stroke-dasharray="0 503" transform="rotate(-90 100 100)"
+              style="transition: stroke-dasharray 1.2s ease, stroke 0.5s"/>
+      <text id="gaugeNum" x="100" y="93" text-anchor="middle"
+            fill="#fff" font-size="38" font-weight="bold" font-family="Arial">--</text>
+      <text x="100" y="116" text-anchor="middle"
+            fill="#4A7A9B" font-size="11" font-family="Arial">TRUST SCORE</text>
+    </svg>
+    <div class="verdict-label" id="verdictLabel">—</div>
+    <div class="verdict-desc"  id="verdictDesc">—</div>
+  </div>
+
+  <div class="sec-title">Layer Scores</div>
+  <div class="score-row">
+    <div class="score-card" style="border-top-color:#1A6FA8">
+      <div class="lbl">🛡 Layer 1</div>
+      <div class="val" id="l1Val" style="color:#5DADE2">--</div>
+      <div class="sub">Metadata Integrity</div>
+    </div>
+    <div class="score-card" style="border-top-color:#1E8449">
+      <div class="lbl">🧬 Layer 2</div>
+      <div class="val" id="l2Val" style="color:#2ECC71">--</div>
+      <div class="sub">Biological Voice</div>
+    </div>
+    <div class="score-card" id="trustCard" style="border-top-color:#17A589">
+      <div class="lbl">⚖ Final Trust</div>
+      <div class="val" id="trustVal" style="color:#17A589">--</div>
+      <div class="sub">Weighted Score</div>
+    </div>
+  </div>
+
+  <div class="sec-title">Biological Voice Markers</div>
+  <div class="bio-grid" id="bioGrid"></div>
+
+  <div id="vizWrap" style="display:none">
+    <div class="sec-title">Voice Visualizations</div>
+    <div class="viz-row">
+      <div class="viz-box" id="mfccWrap" style="display:none">
+        <p>MFCC Analysis</p>
+        <img id="mfccImg" src="" alt="MFCC"/>
+      </div>
+      <div class="viz-box" id="specWrap" style="display:none">
+        <p>Mel Spectrogram</p>
+        <img id="specImg" src="" alt="Spectrogram"/>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-title">
+    Forensic Flags (<span id="flagCnt">0</span>)
+  </div>
+  <ul class="flags-list" id="flagsList"></ul>
+
+  <div style="margin-top:18px">
+    <div class="sec-title">Recommendation</div>
+    <div class="reco-box" id="recoBox">—</div>
+  </div>
+
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+//   CONFIG — paste your current ngrok URL here
+// ╚══════════════════════════════════════════════════════════╝
+const API_BASE = "https://your-render-app-name.onreader.com";
+
+
+// ── tiny helpers ──────────────────────────────────────────────
+function show(id)    { document.getElementById(id).style.display = "block"; }
+function hide(id)    { document.getElementById(id).style.display = "none";  }
+function setText(id, v) { document.getElementById(id).textContent = v; }
+
+function log(msg) {
+  const box = document.getElementById("debugBox");
+  box.style.display = "block";
+  box.textContent += "[LOG] " + msg + "\n";
+}
+
+// ── file selected ─────────────────────────────────────────────
+function onFileSelected(input) {
+  const f = input.files[0];
+  if (!f) return;
+  setText("fileName", f.name + "  (" + (f.size / 1024).toFixed(1) + " KB)");
+  document.getElementById("analyzeBtn").disabled = false;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MAIN ANALYZE FUNCTION
+// ══════════════════════════════════════════════════════════════
+async function analyzeAudio() {
+  const fileInput = document.getElementById("fileInput");
+  const file = fileInput.files[0];
+  if (!file) { alert("Please select a file first."); return; }
+
+  // ── Reset UI ──────────────────────────────────────────────
+  hide("results");
+  hide("errorBox");
+  document.getElementById("debugBox").textContent = "";
+  show("loadingBox");
+  document.getElementById("analyzeBtn").disabled = true;
+  document.getElementById("analyzeBtn").textContent = "⏳ Analyzing...";
+
+  log("File: " + file.name + " | " + (file.size/1024).toFixed(1) + " KB");
+  log("Endpoint: " + API_BASE + "/analyze");
+
+  try {
+    // ── Build form data ───────────────────────────────────────
+    const fd = new FormData();
+    fd.append("file", file);
+
+    log("Sending request...");
+
+    // ── THE FETCH CALL ────────────────────────────────────────
+    // CRITICAL FIX 1: Add ngrok-skip-browser-warning header
+    //   Without this, ngrok returns an HTML warning page instead
+    //   of your JSON, which causes JSON.parse to fail silently.
+    //
+    // CRITICAL FIX 2: Do NOT set Content-Type manually.
+    //   Let the browser set it with the correct boundary string.
+    const response = await fetch(API_BASE + "/analyze", {
+      method:  "POST",
+      body:    fd,
+      headers: {
+        "ngrok-skip-browser-warning": "true"
+      }
+    });
+
+    log("HTTP status: " + response.status + " " + response.statusText);
+
+    // ── Read as TEXT first (safe for both JSON and error HTML) ─
+    const rawText = await response.text();
+    log("Response length: " + rawText.length + " chars");
+    log("First 200 chars: " + rawText.substring(0, 200));
+
+    if (!response.ok) {
+      throw new Error("Server returned HTTP " + response.status + "\n\n" + rawText.substring(0, 400));
+    }
+
+    // ── Parse JSON ────────────────────────────────────────────
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseErr) {
+      throw new Error(
+        "Response is not valid JSON. " +
+        "This usually means ngrok returned an HTML page.\n\n" +
+        "Raw response:\n" + rawText.substring(0, 400)
+      );
+    }
+
+    log("✓ JSON parsed! trust_score=" + data.trust_score + " verdict=" + data.verdict);
+
+    // ── Show results ──────────────────────────────────────────
+    displayResults(data);
+
+  } catch (err) {
+    log("ERROR: " + err.message);
+    show("errorBox");
+    document.getElementById("errorBox").textContent = "❌ " + err.message;
+  } finally {
+    hide("loadingBox");
+    document.getElementById("analyzeBtn").disabled    = false;
+    document.getElementById("analyzeBtn").textContent = "🔬 Analyze Audio";
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  DISPLAY RESULTS
+// ══════════════════════════════════════════════════════════════
+function displayResults(data) {
+  show("results");
+
+  const score   = data.trust_score ?? 0;
+  const verdict = data.verdict     ?? "UNKNOWN";
+  const color   = score >= 70 ? "#1E8449"
+                : score >= 45 ? "#CA6F1E"
+                :               "#B03A2E";
+
+  // ── Gauge ─────────────────────────────────────────────────
+  const circ  = 2 * Math.PI * 80;   // circumference for r=80
+  const dash  = (score / 100) * circ;
+  const arc   = document.getElementById("gaugeArc");
+  arc.setAttribute("stroke", color);
+  arc.setAttribute("stroke-dasharray", dash.toFixed(1) + " " + (circ - dash).toFixed(1));
+
+  const numEl = document.getElementById("gaugeNum");
+  numEl.textContent = score;
+  numEl.setAttribute("fill", color);
+
+  setText("verdictLabel", (data.verdict_emoji ?? "") + "  " + verdict);
+  document.getElementById("verdictLabel").style.color = color;
+  setText("verdictDesc", data.description ?? "");
+
+  // ── Layer scores ──────────────────────────────────────────
+  setText("l1Val",    data.l1_score ?? "--");
+  setText("l2Val",    data.l2_score ?? "--");
+  setText("trustVal", score);
+  document.getElementById("trustVal").style.color           = color;
+  document.getElementById("trustCard").style.borderTopColor = color;
+
+  // ── Bio features ──────────────────────────────────────────
+  const bio     = data.bio_features ?? {};
+  const bioGrid = document.getElementById("bioGrid");
+  bioGrid.innerHTML = "";
+
+  const bioItems = [
+    { lbl:"Jitter (local)",   key:"jitter_local",       fmt: v => v.toFixed(5), warn: v => v < 0.003  },
+    { lbl:"Shimmer (local)",  key:"shimmer_local",      fmt: v => v.toFixed(5), warn: v => v < 0.010  },
+    { lbl:"HNR (dB)",         key:"hnr_db",             fmt: v => v.toFixed(1),  warn: v => v > 30    },
+    { lbl:"Pitch Mean (Hz)",  key:"pitch_mean",         fmt: v => v.toFixed(1),  warn: () => false    },
+    { lbl:"Pitch Smoothness", key:"pitch_smoothness",   fmt: v => v.toFixed(3),  warn: v => v < 2.5   },
+    { lbl:"Voiced %",         key:"voiced_fraction",    fmt: v => (v*100).toFixed(0)+"%", warn: () => false },
+    { lbl:"GAN Artifact",     key:"gan_artifact_score", fmt: v => v.toFixed(3),  warn: v => v > 0.35  },
+    { lbl:"RMS Energy",       key:"rms_mean",           fmt: v => v.toFixed(4),  warn: () => false    },
+  ];
+
+  bioItems.forEach(item => {
+    const v = bio[item.key];
+    if (v === undefined || v === null) return;
+    const warn = item.warn(v);
+    const d = document.createElement("div");
+    d.className = "bio-item";
+    d.innerHTML = `
+      <div class="b-lbl">${item.lbl}</div>
+      <div class="b-val" style="color:${warn ? "#E59866" : "#E0EAF4"}">
+        ${item.fmt(v)}${warn ? " ⚠" : ""}
+      </div>`;
+    bioGrid.appendChild(d);
+  });
+
+  // ── Visualizations ────────────────────────────────────────
+  if (data.mfcc_image_b64 || data.spectrogram_b64) {
+    show("vizWrap");
+    if (data.mfcc_image_b64) {
+      show("mfccWrap");
+      document.getElementById("mfccImg").src = "data:image/png;base64," + data.mfcc_image_b64;
+    }
+    if (data.spectrogram_b64) {
+      show("specWrap");
+      document.getElementById("specImg").src = "data:image/png;base64," + data.spectrogram_b64;
+    }
+  }
+
+  // ── Flags ─────────────────────────────────────────────────
+  const flags = data.all_flags ?? [];
+  setText("flagCnt", flags.length);
+  const fl = document.getElementById("flagsList");
+  fl.innerHTML = "";
+
+  if (flags.length === 0) {
+    fl.innerHTML = '<li style="color:#4A7A9B;font-size:0.85rem">✅ No forensic flags detected</li>';
+  } else {
+    flags.forEach(f => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span class="badge badge-${f.severity}">${f.severity}</span>
+        <div>
+          <span class="flag-code">${f.code}</span>
+          <span class="flag-detail">${f.detail ?? ""}</span>
+        </div>`;
+      fl.appendChild(li);
+    });
+  }
+
+  // ── Recommendation ────────────────────────────────────────
+  setText("recoBox", data.recommendation ?? "No recommendation available.");
+
+  // Scroll to results
+  document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+</script>
+</body>
+</html>

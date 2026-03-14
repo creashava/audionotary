@@ -1,0 +1,12 @@
+data/
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.mp4
+*.m4a
+*.webm
+*.zip
+*.tar
+*.pkl
+__pycache__/
